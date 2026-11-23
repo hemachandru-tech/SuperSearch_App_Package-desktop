@@ -1,0 +1,4 @@
+image_filename,annotation_id,bbox_x1,bbox_y1,bbox_x2,bbox_y2,true_identity,notes
+Screenshot 2026-10-08 100929.png,face_001,100,50,300,250,Sarfaraz Khan,Profile view
+Screenshot 2026-10-08 100929.png,face_002,400,60,600,260,Unknown,Umpire in background
+Screenshot 2026-10-08 102425.png,face_003,150,150,350,350,Shreyas Gopal,Clear face

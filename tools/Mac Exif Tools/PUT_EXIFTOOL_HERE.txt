@@ -1,0 +1,12 @@
+OPTIONAL - only needed for PNG / HEIC / RAW / .ARW metadata embedding.
+(For .jpg / .jpeg / .tif this folder can stay empty - piexif handles those.)
+
+HOW TO ADD EXIFTOOL (1 minute, no installation):
+  1. Go to:  https://exiftool.org
+  2. Download "Windows Executable" (a .zip file).
+  3. Inside the zip is a file called  exiftool(-k).exe
+  4. RENAME it to exactly:  exiftool.exe
+  5. Put that exiftool.exe in THIS "tools" folder.
+
+That's it. The app finds it automatically next time you start it.
+You can confirm it worked: the app's top status bar will say "Metadata: exiftool".

@@ -1,0 +1,174 @@
+#!/bin/bash
+#
+# build_app.sh — assemble SuperSearch.app (Option B: bundled standalone Python + venv).
+# UNSIGNED x86_64 build (native on Intel, via Rosetta 2 on Apple Silicon).
+#
+# Output: Client_Delivery/SuperSearch.app  (+ README.txt + DELIVERY.md)
+#
+# The Gemini API key is BUNDLED (read from the shipped .env) so the client never
+# enters a key. See DELIVERY.md "API key" for the security note + quota guidance.
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# --- sources ---------------------------------------------------------------
+# Use the currently active Python environment's base prefix
+CPY="$(python3 -c 'import sys; print(sys.base_prefix)')"
+
+# Site packages path
+SP="$ROOT/.venv/lib/python3.11/site-packages"
+# Fallback to python3.10 or 3.12 if 3.11 doesn't exist
+if [ ! -d "$SP" ]; then
+    SP=$(find "$ROOT/.venv/lib" -name "site-packages" -maxdepth 2 | head -n 1)
+fi
+
+IF="$HOME/.insightface/models/buffalo_l"
+LOGO="$ROOT/webui/logo.png"
+
+# --- output ----------------------------------------------------------------
+OUT="$ROOT/Client_Delivery"
+APP="$OUT/SuperSearch.app"
+RES="$APP/Contents/Resources"
+
+echo "==> Sanity checks"
+[ -x "$CPY/bin/python3" ] || { echo "ERROR: standalone python not found at $CPY"; exit 1; }
+[ -d "$SP" ]               || { echo "ERROR: venv site-packages not found at $SP"; exit 1; }
+[ -d "$IF" ]               || { echo "ERROR: insightface buffalo_l not found at $IF"; exit 1; }
+[ -f "$LOGO" ]             || { echo "ERROR: logo not found at $LOGO"; exit 1; }
+[ -f "$ROOT/.env" ]        || { echo "ERROR: .env not found at project root"; exit 1; }
+
+echo "==> Resetting $APP"
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$RES/app" "$RES/runtime"
+
+echo "==> [1/6] Copying project source -> Resources/app (INCLUDING .env with bundled key)"
+rsync -a \
+  --exclude '.venv' --exclude '.git' --exclude '.gitignore' --exclude '.claude' \
+  --exclude '.appwindow' --exclude 'dist' --exclude 'Client_Delivery' --exclude 'build_app.sh' \
+  --exclude 'cache' --exclude 'scratch' --exclude 'temp_frames' --exclude 'temp_annotated' \
+  --exclude '__pycache__' --exclude '*.pyc' \
+  --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' --exclude '*.log' \
+  --exclude 'app_state.json' \
+  --exclude 'DELIVERY.md' --exclude 'README.txt' --exclude 'READ ME FIRST.txt' --exclude '*.zip' \
+  --exclude 'models/face_corrections.npz' \
+  "$ROOT/" "$RES/app/"
+
+echo "==> Stripping API key from bundled .env (user will set it on first launch)"
+sed -i '' 's/^GEMINI_API_KEYS=.*/GEMINI_API_KEYS=/' "$RES/app/.env" || true
+
+echo "==> [2/6] Copying standalone CPython -> Resources/runtime/cpython"
+rsync -a "$CPY/" "$RES/runtime/cpython/"
+
+echo "==> [3/6] Copying venv site-packages -> Resources/runtime/site-packages (~1.6G)"
+rsync -a "$SP/" "$RES/runtime/site-packages/"
+
+echo "==> [4/6] Bundling InsightFace buffalo_l (~289M)"
+mkdir -p "$RES/app/models/insightface/models/buffalo_l"
+rsync -a "$IF/" "$RES/app/models/insightface/models/buffalo_l/"
+
+echo "==> [5/6] Writing launcher + Info.plist"
+cat > "$APP/Contents/MacOS/SuperSearch" <<'LAUNCH'
+#!/bin/bash
+# SuperSearch .app launcher — runs the bundled Python on run_desktop.py.
+CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
+RES="$CONTENTS/Resources"
+SUP="$HOME/Library/Application Support/SuperSearch"
+mkdir -p "$SUP"
+export SUPERSEARCH_PACKAGED=1
+export PYTHONPATH="$RES/runtime/site-packages"
+export PYTHONNOUSERSITE=1
+FF="$(ls "$RES/runtime/site-packages/imageio_ffmpeg/binaries/"ffmpeg-* 2>/dev/null | head -1)"
+[ -n "$FF" ] && export IMAGEIO_FFMPEG_EXE="$FF"
+cd "$RES/app"
+exec "$RES/runtime/cpython/bin/python3" run_desktop.py >>"$SUP/launch.log" 2>&1
+LAUNCH
+chmod +x "$APP/Contents/MacOS/SuperSearch"
+
+cat > "$APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>SuperSearch</string>
+  <key>CFBundleDisplayName</key><string>Super Search Desktop</string>
+  <key>CFBundleIdentifier</key><string>com.supersearch.desktop</string>
+  <key>CFBundleVersion</key><string>1.0.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleExecutable</key><string>SuperSearch</string>
+  <key>CFBundleIconFile</key><string>icon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+PLIST
+
+echo "==> [6/6] Icon + delivery docs"
+ICONSET="$OUT/icon.iconset"
+rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+for s in 16 32 128 256 512; do
+  d=$((s*2))
+  sips -z $s $s "$LOGO" --out "$ICONSET/icon_${s}x${s}.png"    >/dev/null
+  sips -z $d $d "$LOGO" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$RES/icon.icns"
+rm -rf "$ICONSET"
+
+# --- client-facing README.txt (no key setup needed) ---
+cat > "$OUT/README.txt" <<'README'
+SUPER SEARCH DESKTOP — how to open (macOS)
+
+1) FIRST LAUNCH (one-time): this app is not Apple-signed, so macOS blocks it once.
+   RIGHT-CLICK  SuperSearch.app  ->  Open  ->  click  Open  in the dialog.
+   (After that, just double-click it normally.)
+
+2) APPLE SILICON (M1/M2/M3/M4) Macs: if prompted to install "Rosetta", click Install.
+
+3) On first launch, the app will ask you to enter a Gemini API Key. Paste your key in the box to enable AI tagging features.
+
+4) Best experience: have Google Chrome or Microsoft Edge installed.
+
+Your photos and tags are stored in:
+   ~/Library/Application Support/SuperSearch/
+The app starts with an empty library — use "Tag photos" to add your own folders.
+README
+
+# --- DELIVERY.md (technical) ---
+cat > "$OUT/DELIVERY.md" <<'DELIV'
+# Super Search Desktop — Delivery (macOS .app)
+
+**Build:** unsigned, x86_64 (native on Intel; Rosetta 2 on Apple Silicon), ~2.1 GB.
+Rebuild with `./build_app.sh` from the project root.
+
+## First run on the client Mac
+1. **Gatekeeper:** right-click SuperSearch.app -> Open -> Open (once). Or
+   `xattr -dr com.apple.quarantine "SuperSearch.app"`.
+2. **Apple Silicon:** accept the Rosetta 2 install prompt (x86_64 build).
+3. **API key:** Empty by default. The client will be prompted to enter their key in the UI on first launch.
+4. **Chrome/Edge** recommended (chromeless window); falls back to PyWebView / browser tab.
+
+## Writable state (created on the client Mac)
+`~/Library/Application Support/SuperSearch/` — tags.db, caches, logs, app_state.json,
+the Chrome `.appwindow` profile. Nothing is written inside the .app.
+
+## Self-contained
+The .app bundles its own Python, all native deps, the face/jersey/ArcFace models, and
+exiftool. It depends on nothing in the project folder and can be copied anywhere.
+
+## API key — security note
+The app does not come bundled with a key. The end user must supply their own Gemini key via the app UI, which is then saved locally to `~/Library/Application Support/SuperSearch/app_state.json`.
+
+## Known limitations
+- Unsigned (Gatekeeper step above). Sign+notarize later with an Apple Developer ID.
+- x86_64 only -> Rosetta 2 on Apple Silicon. Native arm64 needs the venv rebuilt on AS.
+- exiftool uses system Perl (present on current macOS).
+DELIV
+
+xattr -cr "$APP" 2>/dev/null || true
+
+echo ""
+echo "==> DONE: $APP"
+du -sh "$APP"
+echo "==> Delivery folder contents:"
+ls -la "$OUT"

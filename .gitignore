@@ -1,0 +1,37 @@
+# --- Secrets / config (NEVER commit) ---
+.env
+.env.local
+
+# --- Packages / dependencies ---
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# --- Build output ---
+dist/
+build/
+Client_Delivery/
+
+# --- App runtime state & caches (written next to the code) ---
+# chromeless browser profile (not source)
+.appwindow/
+tags.db
+tags.db-wal
+tags.db-shm
+cricket_analysis_progress.db
+cricket_analyzer.log
+app_state.json
+scratch/
+temp_frames/
+temp_annotated/
+cache/
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+
+# NOTE: models/ (faces_custom.joblib, jersey.pth) and webui/vendor/ ARE intentionally
+# tracked - they ship with the app. .env.template IS tracked; the real .env is not.
