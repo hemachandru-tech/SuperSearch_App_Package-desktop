@@ -25,6 +25,8 @@ ACTIVITY_API_URL = os.getenv(
 )
 SYNC_INTERVAL_SEC = int(os.getenv("ACTIVITY_SYNC_INTERVAL", "30"))
 BATCH_SIZE = 50
+# Only these actions are recorded: sign in, sign out, and when folder tagging is started.
+ALLOWED_ACTIONS = ("login", "logout", "tagging_start")
 _lock = threading.Lock()
 _started = False
 
@@ -55,6 +57,8 @@ def enqueue(username: str, action_type: str, details: dict | None = None) -> int
     action_type = (action_type or "").strip()
     if not username or not action_type:
         raise ValueError("username and actionType are required")
+    if action_type not in ALLOWED_ACTIONS:
+        return 0  # only login / logout / tagging_start are logged; everything else is ignored
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _lock, _conn() as conn:
         cur = conn.execute(
@@ -80,11 +84,11 @@ def is_online(timeout: float = 3.0) -> bool:
 
 
 def _post(row: dict) -> bool:
+    # Field names follow the API's UserActivityLogRequest schema. The server stamps the
+    # time itself when it receives the row (there is no time field in the schema).
     body = {
-        "username": row["username"],
+        "userName": f"{row['username']}(desktop)",
         "actionType": row["action_type"],
-        "timestamp": row["created_at"],
-        **(json.loads(row["details"] or "{}")),
     }
     req = _urlrequest.Request(
         ACTIVITY_API_URL,
@@ -105,6 +109,13 @@ def _post(row: dict) -> bool:
 
 def sync_pending() -> dict:
     """Send queued rows oldest-first. Stops at the first network failure."""
+    # Drop any unsent rows of actions we no longer log (e.g. old open_file entries).
+    with _lock, _conn() as conn:
+        marks = ",".join("?" for _ in ALLOWED_ACTIONS)
+        conn.execute(
+            f"DELETE FROM activity_queue WHERE synced_at IS NULL AND action_type NOT IN ({marks})",
+            ALLOWED_ACTIONS,
+        )
     if pending_count() == 0:
         return {"sent": 0, "pending": 0, "online": None}
     if not is_online():

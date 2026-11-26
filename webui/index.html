@@ -273,12 +273,6 @@ function App() {
   // dataset — no refetch, no full-page reload.
   function openDetail(rec, list, syncPage) {
     ensureRoster();
-    if (window.SS_USER) {
-      window.api.activity({ username: window.SS_USER, actionType: 'open_file', details: {
-        fileName: rec.file, folderPath: rec.folder, mediaType: VIDEO_FORMATS.includes(rec.format) ? 'Video' : 'Image',
-        playerNames: (rec.players || []).join(', '), event: rec.event, mood: rec.mood, action: rec.action,
-      } }).catch(() => {});
-    }
     const arr = (Array.isArray(list) && list.length) ? list : [rec];
     let idx = arr.findIndex(r => r.id === rec.id);
     if (idx < 0) idx = 0;

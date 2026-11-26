@@ -42,7 +42,11 @@ window.api = {
   // Activity log: { username, actionType, details } — saved locally, auto-synced when online.
   activity: (body)             => j("POST", "/api/activity", body),
   thumbURL: (id)               => `${BASE}/api/thumb?id=${encodeURIComponent(id)}`,   // use as <img src>
-  startTagging: (folder, opts) => j("POST", "/api/start", { folder, ...opts }),
+  // Logs "tagging_start" (user + server time) once the tagging run has actually started.
+  startTagging: (folder, opts) => j("POST", "/api/start", { folder, ...opts }).then(res => {
+    if (window.SS_USER) window.api.activity({ username: window.SS_USER, actionType: 'tagging_start' }).catch(() => {});
+    return res;
+  }),
   stopTagging:  ()             => j("POST", "/api/stop"),
   progress: ()                 => j("GET",  "/api/progress"),
   browse:   (start)            => window.openFolderPicker(start),    // in-app folder browser, resolves {folder} ("" if cancelled)
