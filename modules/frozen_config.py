@@ -42,7 +42,17 @@ FACE_MAX_FACES = 20
 
 # ---- Pipeline ----
 MAX_WORKERS = 4
-GEMINI_MODEL = "gemini-2.5-flash"
+# The Gemini model is chosen in .env (GEMINI_MODEL=...). gemini-2.5-flash is retired for new
+# API keys (404), so the fallback is a Lite model. .env is loaded here because this module
+# can be imported before the app loads it.
+import os as _os
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    from modules import paths as _paths
+    _load_dotenv(_paths.env_path())
+except Exception:
+    pass
+GEMINI_MODEL = (_os.getenv("GEMINI_MODEL") or "gemini-3.5-flash-lite").strip()
 ENABLE_JERSEY = True
 WRITE_METADATA = True
 

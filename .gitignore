@@ -22,6 +22,7 @@ tags.db
 tags.db-wal
 tags.db-shm
 cricket_analysis_progress.db
+activity_queue.db
 cricket_analyzer.log
 app_state.json
 scratch/

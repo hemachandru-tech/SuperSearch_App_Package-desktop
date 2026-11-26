@@ -191,6 +191,10 @@ try:
 except Exception as _e:
     print(f"[EXCEL SYNC] startup sync skipped: {_e}")
 
+# Activity log: queue locally, auto-sync to the central API when the network is back.
+import activity_log as _activity_log
+_activity_log.start_background_sync()
+
 
 # -------------------------------------------------------------------------
 # pages + static files
@@ -210,7 +214,7 @@ def index():
 # -------------------------------------------------------------------------
 @app.get("/api/status")
 def status():
-    model = "gemini-2.5-flash"
+    model = "gemini-3.8-flash"
     try:
         import json
         with open(STATE._state_file, encoding="utf-8") as f:
@@ -385,6 +389,21 @@ def heartbeat():
     global LAST_HEARTBEAT
     LAST_HEARTBEAT = time.time()
     return {"ok": True}
+
+
+@app.post("/api/activity")
+def activity(body: dict = Body(...)):
+    """Record one user action. Saved locally first; sent to the central API by the worker."""
+    try:
+        row_id = _activity_log.enqueue(body.get("username"), body.get("actionType"), body.get("details"))
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return {"ok": True, "id": row_id}
+
+
+@app.get("/api/activity/status")
+def activity_status():
+    return {"pending": _activity_log.pending_count()}
 
 
 @app.get("/api/progress")

@@ -40,6 +40,7 @@ IMAGE_COLUMNS = [
     "apparels_seen",      # from Gemini (list of kit items)
     "crowd_present",      # from Gemini (Yes/No)
     "caption",            # from Gemini (one descriptive sentence)
+    "transcript_json",    # videos: timed speech segments [{start,end,text}] (click-to-seek viewer)
     "embedded_tags",      # tags read back from images that were ALREADY tagged before
     "logos_branding",     # from Gemini
     "shot_type",          # from face/EXIF heuristic

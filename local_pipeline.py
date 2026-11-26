@@ -553,16 +553,24 @@ class LocalTaggingPipeline:
                     action=record["action"],
                     date_str=res.get("datetime", "")
                 )
-                summary_text = res.get("video_summary") or ""
+                summary_text = (res.get("video_summary") or "").strip()
+                # Never write a failure message into the file Description (e.g. an invalid
+                # Gemini key or a parse error) — leave the Summary out until it succeeds.
+                if summary_text.lower().startswith(("error", "no analysis")):
+                    self._log(f"  Summary unavailable for {record['file_name']}: {summary_text[:80]}")
+                    summary_text = ""
                 transcribe_text = res.get("transcribe") or ""
                 
+                # Caption = player names + summary only (this is what the file Description
+                # shows). The transcript is stored separately with timestamps for the viewer.
                 full_caption = base_caption
                 if summary_text:
                     full_caption += "\n\nSummary:\n" + summary_text
-                if transcribe_text:
-                    full_caption += "\n\nTranscript:\n" + transcribe_text
-                    
                 record["caption"] = full_caption
+                segs = [s for s in (res.get("transcript_segments") or []) if s.get("text")]
+                if not segs and transcribe_text:
+                    segs = [{"start": None, "end": None, "text": transcribe_text}]
+                record["transcript_json"] = json.dumps(segs, ensure_ascii=False)
                 
                 # set datetime/date/time of day
                 record["date_time_original"] = res.get("datetime")

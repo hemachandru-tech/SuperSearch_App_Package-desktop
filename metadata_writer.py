@@ -280,6 +280,11 @@ def write_metadata(file_path: str, tags: dict):
 
     # ---- VIDEO: embed into the video container ----
     if ext in VIDEO_EXTS:
+        # Video Description = player names + AI caption + "Summary:" (no transcript, no tag list;
+        # tags already live in Keywords). Rebuilt from the current caption on every write.
+        video_caption = (tags.get("caption") or "").strip()
+        if video_caption:
+            description = video_caption
         if EXIFTOOL_PATH:
             ok, note = _write_video_with_exiftool(file_path, keywords, title, subject, description, author)
             backend = "exiftool(video)"

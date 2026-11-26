@@ -138,6 +138,7 @@ function App() {
       apparel: row.apparel || '',
       crowd: row.crowd_present || 'No',
       caption: row.caption || '',
+      transcriptJson: row.transcript_json || '',
       logos_branding: row.logos_branding || '',
       tournament: row.tournament || '',
       shot_type: row.shot_type || '',
@@ -272,6 +273,12 @@ function App() {
   // dataset — no refetch, no full-page reload.
   function openDetail(rec, list, syncPage) {
     ensureRoster();
+    if (window.SS_USER) {
+      window.api.activity({ username: window.SS_USER, actionType: 'open_file', details: {
+        fileName: rec.file, folderPath: rec.folder, mediaType: VIDEO_FORMATS.includes(rec.format) ? 'Video' : 'Image',
+        playerNames: (rec.players || []).join(', '), event: rec.event, mood: rec.mood, action: rec.action,
+      } }).catch(() => {});
+    }
     const arr = (Array.isArray(list) && list.length) ? list : [rec];
     let idx = arr.findIndex(r => r.id === rec.id);
     if (idx < 0) idx = 0;
@@ -346,7 +353,49 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+/* Login gate. Any username is accepted; the password is fixed. The username is kept for the
+   session (sessionStorage) and stamped on every activity-log entry. */
+const LOGIN_PASSWORD = 'supersearch@123';
+function LoginGate({ children }) {
+  const [user, setUser] = useState(() => {
+    try { return sessionStorage.getItem('ss_user') || ''; } catch (e) { return ''; }
+  });
+  const [name, setName] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  function submit(e) {
+    e.preventDefault();
+    const u = name.trim();
+    if (!u) { setErr('Enter a username.'); return; }
+    if (pw !== LOGIN_PASSWORD) { setErr('Incorrect password.'); return; }
+    try { sessionStorage.setItem('ss_user', u); } catch (_) {}
+    window.SS_USER = u;
+    window.api.activity({ username: u, actionType: 'login' }).catch(() => {});
+    setUser(u);
+  }
+  if (user) { window.SS_USER = user; return children; }
+  const field = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #d7dde8', background: '#eef3fd', fontSize: 15, boxSizing: 'border-box' };
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'linear-gradient(135deg,#FFC72C,#FFE27A)', padding: 16 }}>
+      <form onSubmit={submit} style={{ width: 360, maxWidth: '100%', background: '#fff', borderRadius: 18,
+                                       padding: '32px 26px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+        <h2 style={{ textAlign: 'center', color: '#1E3A8A', margin: '0 0 22px', fontSize: 20 }}>Login to Your Account</h2>
+        <input style={field} placeholder="Username" value={name} autoFocus
+               onChange={e => { setName(e.target.value); setErr(''); }} />
+        <div style={{ height: 12 }} />
+        <input style={field} type="password" placeholder="Password" value={pw}
+               onChange={e => { setPw(e.target.value); setErr(''); }} />
+        {err && <div role="alert" style={{ color: '#B91C1C', fontSize: 13, marginTop: 10 }}>{err}</div>}
+        <button type="submit" style={{ ...field, marginTop: 18, background: '#1E3A8A', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+          Login
+        </button>
+      </form>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<LoginGate><App /></LoginGate>);
 </script>
 </body>
 </html>

@@ -23,7 +23,8 @@ function ExcelSyncBar() {
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState('');
   const load = () => window.api.excelInfo().then(setInfo).catch(() => {});
-  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
+  // Loads once on open; no background auto-refresh (use the manual Refresh action).
+  useEffect(() => { load(); }, []);
   const act = (fn) => { setErr(''); fn().then(load).catch(e => setErr(e.message || String(e))); };
   if (!info) return null;
   return (

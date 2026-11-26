@@ -39,6 +39,8 @@ window.api = {
     return j("GET", `/api/search?` + new URLSearchParams(params));
   },
   metadata: (id)               => j("GET",  `/api/metadata?id=${encodeURIComponent(id)}`),
+  // Activity log: { username, actionType, details } — saved locally, auto-synced when online.
+  activity: (body)             => j("POST", "/api/activity", body),
   thumbURL: (id)               => `${BASE}/api/thumb?id=${encodeURIComponent(id)}`,   // use as <img src>
   startTagging: (folder, opts) => j("POST", "/api/start", { folder, ...opts }),
   stopTagging:  ()             => j("POST", "/api/stop"),

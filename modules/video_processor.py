@@ -1195,7 +1195,9 @@ class VideoProcessor:
                 result['transcribe'] = self._format_timestamped_transcript(segment_list, self.TRANSCRIBE_MAX_CHARS)
             else:
                 result['transcribe'] = transcript
-            
+            # Raw timed segments ({start, end, text}) for the desktop transcript view (click-to-seek).
+            result['transcript_segments'] = segment_list or []
+
             # Extract datetime
             dt, date = self.extract_datetime_from_exif(local_file_path)
             result['datetime'] = dt

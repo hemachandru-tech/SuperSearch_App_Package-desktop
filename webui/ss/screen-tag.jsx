@@ -29,7 +29,7 @@ function TagScreen({ images, onIndexed }) {
 
   const [apiKey, setApiKey] = useState('');
   const [hasKey, setHasKey] = useState(true);
-  const [model, setModel] = useState('gemini-2.5-flash');
+  const [model, setModel] = useState('gemini-3.8-flash');
 
   const tick = useRef(null);
 

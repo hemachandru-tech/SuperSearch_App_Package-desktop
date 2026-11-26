@@ -130,6 +130,17 @@ function PlayerPicker({ value, onChange, roster }) {
   );
 }
 
+/* Video helpers: transcript segments come from the DB as JSON [{start,end,text}]. */
+const VIDEO_FORMATS = ['mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm'];
+function parseTranscript(json) {
+  try { const a = JSON.parse(json || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function fmtClock(sec) {
+  if (sec == null || isNaN(sec)) return '';
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
 function DetailPanel({ rec, onClose, onSave, onStar, onPrev, onNext, hasPrev, hasNext, navPos, navCount }) {
   const D = window.SS_DATA;
   const [draft, setDraft] = useState(null);
@@ -138,6 +149,15 @@ function DetailPanel({ rec, onClose, onSave, onStar, onPrev, onNext, hasPrev, ha
   const [verifying, setVerifying] = useState(false);
   const [tab, setTab] = useState('meta');
   const [lightbox, setLightbox] = useState(false);
+  const videoRef = React.useRef(null);
+  const isVideo = !!rec && VIDEO_FORMATS.includes(String(rec.format || '').toLowerCase());
+  const segs = React.useMemo(() => parseTranscript(rec && rec.transcriptJson), [rec && rec.transcriptJson]);
+  // Jump the video to a transcript line and start playback.
+  function seek(t) {
+    if (!videoRef.current || t == null) return;
+    videoRef.current.currentTime = t;
+    videoRef.current.play().catch(() => {});
+  }
 
   useEffect(() => {
     if (rec) {
@@ -279,13 +299,24 @@ function DetailPanel({ rec, onClose, onSave, onStar, onPrev, onNext, hasPrev, ha
         <div className="so-body">
           {/* preview (click to open full image in-app). Uses the full-image endpoint
               (reliable on Windows), falling back to the thumbnail if it can't load. */}
-          <div className="so-preview" onClick={() => setLightbox(true)} style={{ cursor: 'zoom-in' }} title="Click to view full image">
+          <div className="so-preview" onClick={() => { if (!isVideo) setLightbox(true); }} style={{ cursor: isVideo ? 'default' : 'zoom-in' }} title={isVideo ? '' : 'Click to view full image'}>
+            {isVideo ? (
+              <video
+                ref={videoRef}
+                key={rec.id}
+                src={'/api/file?id=' + encodeURIComponent(rec.id)}
+                controls
+                preload="metadata"
+                style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '46vh', borderRadius: 14, background: '#0c0d12' }}
+              />
+            ) : (
             <img
               src={'/api/file?id=' + encodeURIComponent(rec.id)}
               alt={rec.file}
               onError={e => { if (!e.currentTarget.dataset.fb) { e.currentTarget.dataset.fb = '1'; e.currentTarget.src = window.api.thumbURL(rec.id); } }}
               style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '46vh', objectFit: 'contain', borderRadius: 14, background: '#0c0d12' }}
             />
+            )}
             <div className="so-exif-row">
               <span><Icon name="image" size={13} /> {rec.dims || 'Unknown'}</span>
               <span>{rec.size || ''}</span>
@@ -294,6 +325,28 @@ function DetailPanel({ rec, onClose, onSave, onStar, onPrev, onNext, hasPrev, ha
               </span>
             </div>
           </div>
+
+          {/* Video transcript with timestamps — click a line to jump the video to that moment */}
+          {isVideo && (
+            <div className="transcript-panel" style={{ margin: '12px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.03)' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Transcript</div>
+              {segs.length === 0 ? (
+                <div className="md-label">No speech transcript for this video.</div>
+              ) : (
+                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {segs.map((s, i) => (
+                    <button key={i} className="btn ghost sm" disabled={s.start == null}
+                      onClick={() => seek(s.start)}
+                      title={s.start == null ? '' : 'Jump to ' + fmtClock(s.start)}
+                      style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', justifyContent: 'flex-start', alignItems: 'flex-start', height: 'auto', padding: '4px 8px' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', minWidth: 46, opacity: 0.8 }}>{fmtClock(s.start)}</span>
+                      <span>{s.text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* tabs */}
           <div className="so-tabs">

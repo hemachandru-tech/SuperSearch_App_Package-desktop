@@ -266,6 +266,20 @@ function TitleBar({ screen }) {
       <span className="sep" />
       <span className="crumb">{names[screen]}</span>
       <span className="spacer" />
+      {window.SS_USER && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+          <span title="Signed in">{window.SS_USER}</span>
+          <button className="btn ghost sm" onClick={() => {
+            const u = window.SS_USER;
+            // Save the logout locally (synced when online), then return to the login page.
+            window.api.activity({ username: u, actionType: 'logout' }).catch(() => {}).finally(() => {
+              try { sessionStorage.removeItem('ss_user'); } catch (e) {}
+              window.SS_USER = '';
+              window.location.reload();
+            });
+          }}>Logout</button>
+        </span>
+      )}
     </div>
   );
 }
